@@ -216,6 +216,10 @@ namespace Ind2
             double x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
 
             double denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+            if (p1.Equals(p4) || p1.Equals(p3)) return null;
+            if (p2.Equals(p3) || p2.Equals(p4)) return null;
+
             if (Math.Abs(denom) < 1e-9) return null;
 
             double t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
@@ -279,7 +283,6 @@ namespace Ind2
                 {
                     finalPoints.Add(new PointF((float)point.x, (float)point.y));
                 }
-                Console.WriteLine("я дебил");
                 return;
             }
 
@@ -292,19 +295,25 @@ namespace Ind2
 
             Point current = FindLeftestPoint(currentPolygon);
             Point start = current;
-            HashSet<Point> visited = new HashSet<Point>();
+
+            // Используем словарь для отслеживания, сколько раз посетили каждую точку
+            Dictionary<Point, int> visitCount = new Dictionary<Point, int>();
             bool started = false;
 
             int safetyCounter = 0;
-            int maxSteps = (polygon1.Count + polygon2.Count) * 2;
+            int maxSteps = (polygon1.Count + polygon2.Count) * 3;
 
             while (safetyCounter++ < maxSteps)
             {
-                // Добавляем текущую точку
-                if (!visited.Contains(current))
+                // Добавляем текущую точку в результат (если еще не добавили слишком много раз)
+                if (!visitCount.ContainsKey(current) || visitCount[current] < 2)
                 {
                     finalPoints.Add(new PointF((float)current.x, (float)current.y));
-                    visited.Add(current);
+
+                    if (!visitCount.ContainsKey(current))
+                        visitCount[current] = 1;
+                    else
+                        visitCount[current]++;
                 }
 
                 Point next = current.next;
@@ -334,10 +343,15 @@ namespace Ind2
                 {
                     Point intersectionPoint = new Point(closestIntersection.Value.X, closestIntersection.Value.Y);
 
-                    if (!visited.Contains(intersectionPoint))
+                    // Добавляем точку пересечения (если еще не добавили слишком много раз)
+                    if (!visitCount.ContainsKey(intersectionPoint) || visitCount[intersectionPoint] < 2)
                     {
                         finalPoints.Add(closestIntersection.Value);
-                        visited.Add(intersectionPoint);
+
+                        if (!visitCount.ContainsKey(intersectionPoint))
+                            visitCount[intersectionPoint] = 1;
+                        else
+                            visitCount[intersectionPoint]++;
                     }
 
                     // Переключаем полигоны
@@ -353,12 +367,20 @@ namespace Ind2
                     // Находим общую точку в другом полигоне
                     Point commonPoint = otherPolygon.First(p => p.Equals(next));
 
-                    // Переключаем полигоны
-                    var temp = currentPolygon;
-                    currentPolygon = otherPolygon;
-                    otherPolygon = temp;
+                    // Переключаем полигоны только если мы еще не посещали эту точку слишком много раз
+                    if (!visitCount.ContainsKey(commonPoint) || visitCount[commonPoint] < 2)
+                    {
+                        var temp = currentPolygon;
+                        currentPolygon = otherPolygon;
+                        otherPolygon = temp;
 
-                    current = commonPoint;
+                        current = commonPoint;
+                    }
+                    else
+                    {
+                        // Если уже посещали эту точку 2 раза, продолжаем по текущему полигону
+                        current = next;
+                    }
                 }
                 else
                 {
@@ -366,13 +388,29 @@ namespace Ind2
                     current = next;
                 }
 
-                // Проверяем завершение (вернулись в начальную точку)
+                // Проверяем завершение (вернулись в начальную точку И уже начали обход)
                 if (current.Equals(start) && started)
                 {
-                    break;
+                    // Дополнительная проверка: если мы в начальной точке и она общая,
+                    // даем ей возможность быть обработанной дважды
+                    if (IsPointInPolygon(start, otherPolygon) &&
+                        (!visitCount.ContainsKey(start) || visitCount[start] < 2))
+                    {
+                        // Продолжаем, чтобы обработать начальную точку во втором полигоне
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
 
                 started = true;
+            }
+
+            // Удаляем возможные дубликаты в конце (если начальная точка добавилась дважды)
+            if (finalPoints.Count > 2 && finalPoints[0].Equals(finalPoints[finalPoints.Count - 1]))
+            {
+                finalPoints.RemoveAt(finalPoints.Count - 1);
             }
 
             canvas.Invalidate();
