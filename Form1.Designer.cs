@@ -1,11 +1,14 @@
-﻿namespace Ind2
+﻿using System.Drawing;
+using System.Windows.Forms;
+
+namespace Ind2
 {
     partial class Form1
     {
         private System.ComponentModel.IContainer components = null;
-        private System.Windows.Forms.Panel mainPanel;
-        private System.Windows.Forms.Button clearButton;
-        private System.Windows.Forms.Button goButton;
+        private PictureBox canvas;
+        private Button clearButton;
+        private Button goButton;
 
         protected override void Dispose(bool disposing)
         {
@@ -18,46 +21,57 @@
 
         private void InitializeComponent()
         {
-            this.mainPanel = new System.Windows.Forms.Panel();
-            this.clearButton = new System.Windows.Forms.Button();
-            this.goButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
 
-            // mainPanel
-            this.mainPanel.BackColor = System.Drawing.Color.White;
-            this.mainPanel.Location = new System.Drawing.Point(12, 12);
-            this.mainPanel.Name = "mainPanel";
-            this.mainPanel.Size = new System.Drawing.Size(700, 700);
-            this.mainPanel.TabIndex = 0;
-
-            // clearButton
-            this.clearButton.Location = new System.Drawing.Point(730, 70);
-            this.clearButton.Name = "clearButton";
-            this.clearButton.Size = new System.Drawing.Size(75, 30);
-            this.clearButton.TabIndex = 1;
-            this.clearButton.Text = "Clear";
-            this.clearButton.UseVisualStyleBackColor = true;
-            this.clearButton.Click += new System.EventHandler(this.clearButton_Click);
-
-            // goButton
-            this.goButton.Location = new System.Drawing.Point(730, 30);
-            this.goButton.Name = "goButton";
-            this.goButton.Size = new System.Drawing.Size(75, 30);
-            this.goButton.TabIndex = 2;
-            this.goButton.Text = "Go";
-            this.goButton.UseVisualStyleBackColor = true;
-            this.goButton.Click += new System.EventHandler(this.goButton_Click);
-
             // Form1
-            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(820, 730);
-            this.Controls.Add(this.goButton);
-            this.Controls.Add(this.clearButton);
-            this.Controls.Add(this.mainPanel);
-            this.Name = "Form1";
-            this.Text = "Объединение выпуклых полигонов";
-            this.ResumeLayout(false);
+            this.Text = "Объединение выпуклых оболочек";
+            this.Size = new Size(SIZE + 200, SIZE + 100);
+            this.StartPosition = FormStartPosition.CenterScreen;
+
+            // Canvas
+            canvas = new PictureBox
+            {
+                Width = SIZE,
+                Height = SIZE,
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Location = new System.Drawing.Point(10, 10)
+            };
+            canvas.Paint += Canvas_Paint;
+            canvas.MouseClick += Canvas_MouseClick;
+            this.Controls.Add(canvas);
+
+            // Clear button
+            clearButton = new Button
+            {
+                Text = "Clear",
+                Location = new System.Drawing.Point(SIZE + 20, 20),
+                Size = new Size(80, 30)
+            };
+            clearButton.Click += ClearButton_Click;
+            this.Controls.Add(clearButton);
+
+            // Go button
+            goButton = new Button
+            {
+                Text = "Go",
+                Location = new System.Drawing.Point(SIZE + 20, 60),
+                Size = new Size(80, 30)
+            };
+            goButton.Click += GoButton_Click;
+            this.Controls.Add(goButton);
+
+            // Label with instructions
+            var label = new Label
+            {
+                Text = "ЛКМ - добавить точку, ПКМ - закрыть полигон. Вершины по часовой стрелке!",
+                Location = new System.Drawing.Point(SIZE + 20, 100),
+                Size = new Size(170, 40),
+                AutoSize = true
+            };
+            this.Controls.Add(label);
+
+            this.ResumeLayout();
         }
     }
 }
