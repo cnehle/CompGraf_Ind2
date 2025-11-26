@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -8,360 +9,449 @@ namespace Ind2
 {
     public partial class Form1 : Form
     {
-        private List<PointF> polygon1 = new List<PointF>();
-        private List<PointF> polygon2 = new List<PointF>();
+        private const int SIZE = 700;
+        private bool fill = false;
+        private bool fullFigure = false;
+        private bool fullFigure2 = false;
+        private List<Point> polygon1 = new List<Point>();
+        private List<Point> polygon2 = new List<Point>();
         private List<PointF> finalPoints = new List<PointF>();
-        private List<PointF> currentPoints = new List<PointF>();
-
-        private bool polygon1Complete = false;
-        private bool polygon2Complete = false;
-        private bool drawingPolygon1 = true;
-
-        private Pen polygon1Pen = new Pen(Color.Blue, 2);
-        private Pen polygon2Pen = new Pen(Color.Red, 2);
-        private Pen resultPen = new Pen(Color.Green, 3);
-
-        private Brush polygon1Brush = new SolidBrush(Color.Blue);
-        private Brush polygon2Brush = new SolidBrush(Color.Red);
-        private Brush resultBrush = new SolidBrush(Color.Orange);
-        private Brush intersectionBrush = new SolidBrush(Color.Green);
+        private List<PointF> points = new List<PointF>();
+        private List<PointF> points2 = new List<PointF>();
 
         public Form1()
         {
             InitializeComponent();
-            this.DoubleBuffered = true;
-            mainPanel.Paint += MainPanel_Paint;
-            mainPanel.MouseClick += MainPanel_MouseClick;
         }
 
-        private void MainPanel_Paint(object sender, PaintEventArgs e)
-        {
-            Graphics g = e.Graphics;
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-            // Рисуем полигон 1
-            if (polygon1.Count > 1)
-            {
-                if (polygon1Complete)
-                {
-                    g.DrawPolygon(polygon1Pen, polygon1.ToArray());
-                }
-                else
-                {
-                    g.DrawLines(polygon1Pen, polygon1.ToArray());
-                }
-
-                // Рисуем точки полигона 1
-                foreach (var point in polygon1)
-                {
-                    g.FillEllipse(polygon1Brush, point.X - 2, point.Y - 2, 4, 4);
-                }
-            }
-
-            // Рисуем полигон 2
-            if (polygon2.Count > 1)
-            {
-                if (polygon2Complete)
-                {
-                    g.DrawPolygon(polygon2Pen, polygon2.ToArray());
-                }
-                else
-                {
-                    g.DrawLines(polygon2Pen, polygon2.ToArray());
-                }
-
-                // Рисуем точки полигона 2
-                foreach (var point in polygon2)
-                {
-                    g.FillEllipse(polygon2Brush, point.X - 2, point.Y - 2, 4, 4);
-                }
-            }
-
-            // Рисуем результат
-            if (finalPoints.Count > 1)
-            {
-                // Рисуем линии
-                g.DrawPolygon(resultPen, finalPoints.ToArray());
-
-                // Рисуем точки
-                for (int i = 0; i < finalPoints.Count; i++)
-                {
-                    var point = finalPoints[i];
-                    g.FillEllipse(resultBrush, point.X - 4, point.Y - 4, 8, 8);
-
-                    // Подписываем точки
-                    string label = i.ToString();
-                    var labelSize = g.MeasureString(label, this.Font);
-                    g.DrawString(label, this.Font, Brushes.Black,
-                        point.X - labelSize.Width / 2, point.Y - 20);
-                }
-            }
-        }
-
-        private void MainPanel_MouseClick(object sender, MouseEventArgs e)
+        private void Canvas_MouseClick(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)
             {
-                if (!polygon1Complete)
-                {
-                    polygon1.Add(new PointF(e.X, e.Y));
-                    drawingPolygon1 = true;
-                    currentPoints = polygon1;
-                }
-                else if (!polygon2Complete)
-                {
-                    polygon2.Add(new PointF(e.X, e.Y));
-                    drawingPolygon1 = false;
-                    currentPoints = polygon2;
-                }
-
-                mainPanel.Invalidate();
+                LeftButtonClick(e.X, e.Y);
             }
             else if (e.Button == MouseButtons.Right)
             {
-                if (!polygon1Complete && polygon1.Count > 2)
-                {
-                    polygon1Complete = true;
-                    MessageBox.Show("Полигон 1 завершен");
-                }
-                else if (!polygon2Complete && polygon2.Count > 2)
-                {
-                    polygon2Complete = true;
-                    MessageBox.Show("Полигон 2 завершен");
-                }
-
-                mainPanel.Invalidate();
+                RightButtonClick();
             }
+            canvas.Invalidate();
         }
 
-        private double Rotate(PointF a, PointF b, PointF c)
+        private void LeftButtonClick(int x, int y)
         {
-            return (b.X - a.X) * (c.Y - b.Y) - (b.Y - a.Y) * (c.X - b.X);
-        }
+            Point point = new Point(x, y);
 
-        private PointF? FindLineIntersection(PointF p1, PointF p2, PointF p3, PointF p4)
-        {
-            float denominator = (p1.X - p2.X) * (p3.Y - p4.Y) - (p1.Y - p2.Y) * (p3.X - p4.X);
-
-            if (Math.Abs(denominator) < 1e-10)
-                return null;
-
-            float x = ((p1.X * p2.Y - p1.Y * p2.X) * (p3.X - p4.X) -
-                      (p1.X - p2.X) * (p3.X * p4.Y - p3.Y * p4.X)) / denominator;
-            float y = ((p1.X * p2.Y - p1.Y * p2.X) * (p3.Y - p4.Y) -
-                      (p1.Y - p2.Y) * (p3.X * p4.Y - p3.Y * p4.X)) / denominator;
-
-            // Проверяем, что точка находится на отрезках
-            if (x < Math.Min(p1.X, p2.X) - 1e-5 || x > Math.Max(p1.X, p2.X) + 1e-5 ||
-                x < Math.Min(p3.X, p4.X) - 1e-5 || x > Math.Max(p3.X, p4.X) + 1e-5 ||
-                y < Math.Min(p1.Y, p2.Y) - 1e-5 || y > Math.Max(p1.Y, p2.Y) + 1e-5 ||
-                y < Math.Min(p3.Y, p4.Y) - 1e-5 || y > Math.Max(p3.Y, p4.Y) + 1e-5)
-                return null;
-
-            return new PointF(x, y);
-        }
-
-        private List<PointF> FindAllIntersections()
-        {
-            List<PointF> intersections = new List<PointF>();
-
-            for (int i = 0; i < polygon1.Count; i++)
+            if (!fullFigure)
             {
-                PointF p1 = polygon1[i];
-                PointF p2 = polygon1[(i + 1) % polygon1.Count];
-
-                for (int j = 0; j < polygon2.Count; j++)
+                if (points.Count == 0 && polygon1.Count == 0)
                 {
-                    PointF p3 = polygon2[j];
-                    PointF p4 = polygon2[(j + 1) % polygon2.Count];
-
-                    PointF? intersection = FindLineIntersection(p1, p2, p3, p4);
-                    if (intersection.HasValue)
-                    {
-                        intersections.Add(intersection.Value);
-                    }
+                    points.Add(new PointF((float)x, (float)y));
+                    polygon1.Add(point);
+                }
+                else
+                {
+                    var lastPoint = points.Last();
+                    points.Add(new PointF((float)x, (float)y));
+                    point = new Point(x, y, null, polygon1.Last());
+                    polygon1.Last().next = point;
+                    polygon1.Add(point);
                 }
             }
-
-            return intersections;
-        }
-
-        private bool PointInPolygon(PointF point, List<PointF> polygon)
-        {
-            int n = polygon.Count;
-            bool inside = false;
-
-            PointF p1 = polygon[0];
-            for (int i = 1; i <= n; i++)
+            else if (!fullFigure2)
             {
-                PointF p2 = polygon[i % n];
-                if (point.Y > Math.Min(p1.Y, p2.Y))
+                if (points2.Count == 0 && polygon2.Count == 0)
                 {
-                    if (point.Y <= Math.Max(p1.Y, p2.Y))
-                    {
-                        if (point.X <= Math.Max(p1.X, p2.X))
-                        {
-                            if (p1.Y != p2.Y)
-                            {
-                                float xIntersection = (point.Y - p1.Y) * (p2.X - p1.X) / (p2.Y - p1.Y) + p1.X;
-                                if (p1.X == p2.X || point.X <= xIntersection)
-                                {
-                                    inside = !inside;
-                                }
-                            }
-                        }
-                    }
+                    points2.Add(new PointF((float)x, (float)y));
+                    polygon2.Add(point);
                 }
-                p1 = p2;
-            }
-
-            return inside;
-        }
-
-        private bool PolygonContainsPolygon(List<PointF> container, List<PointF> contained)
-        {
-            foreach (var point in contained)
-            {
-                if (!PointInPolygon(point, container))
-                    return false;
-            }
-            return true;
-        }
-
-        private List<PointF> GrahamScan(List<PointF> points)
-        {
-            if (points.Count < 3)
-                return points;
-
-            // Находим самую нижнюю левую точку
-            PointF start = points.OrderBy(p => p.Y).ThenBy(p => p.X).First();
-
-            // Сортируем точки по полярному углу
-            var sortedPoints = points.Where(p => !p.Equals(start))
-                                   .OrderBy(p => Math.Atan2(p.Y - start.Y, p.X - start.X))
-                                   .ToList();
-
-            List<PointF> hull = new List<PointF> { start };
-            if (sortedPoints.Count > 0)
-                hull.Add(sortedPoints[0]);
-
-            for (int i = 1; i < sortedPoints.Count; i++)
-            {
-                while (hull.Count > 1 &&
-                       Rotate(hull[hull.Count - 2], hull[hull.Count - 1], sortedPoints[i]) <= 0)
+                else
                 {
-                    hull.RemoveAt(hull.Count - 1);
-                }
-                hull.Add(sortedPoints[i]);
-            }
-
-            return hull;
-        }
-
-        private List<PointF> MergeConvexHull(List<PointF> points1, List<PointF> points2)
-        {
-            List<PointF> allPoints = new List<PointF>();
-            allPoints.AddRange(points1);
-            allPoints.AddRange(points2);
-
-            // Убираем дубликаты
-            var uniquePoints = allPoints.Distinct(new PointFComparer()).ToList();
-
-            return GrahamScan(uniquePoints);
-        }
-
-        private void UnionPolygons()
-        {
-            finalPoints.Clear();
-
-            if (polygon1.Count == 0 || polygon2.Count == 0)
-                return;
-
-            List<PointF> intersections = FindAllIntersections();
-
-            bool poly1ContainsPoly2 = PolygonContainsPolygon(polygon1, polygon2);
-            bool poly2ContainsPoly1 = PolygonContainsPolygon(polygon2, polygon1);
-
-            if (poly1ContainsPoly2)
-            {
-                finalPoints = polygon1;
-            }
-            else if (poly2ContainsPoly1)
-            {
-                finalPoints = polygon2;
-            }
-            else if (intersections.Count == 0)
-            {
-                finalPoints = MergeConvexHull(polygon1, polygon2);
-            }
-            else
-            {
-                List<PointF> allPoints = new List<PointF>();
-                allPoints.AddRange(intersections);
-
-                foreach (var point in polygon1)
-                {
-                    if (!PointInPolygon(point, polygon2))
-                    {
-                        allPoints.Add(point);
-                    }
-                }
-
-                foreach (var point in polygon2)
-                {
-                    if (!PointInPolygon(point, polygon1))
-                    {
-                        allPoints.Add(point);
-                    }
-                }
-
-                if (allPoints.Count > 0)
-                {
-                    float centerX = allPoints.Average(p => p.X);
-                    float centerY = allPoints.Average(p => p.Y);
-
-                    allPoints = allPoints.OrderBy(p => Math.Atan2(p.Y - centerY, p.X - centerX)).ToList();
-                    finalPoints = allPoints;
+                    var lastPoint = points2.Last();
+                    points2.Add(new PointF((float)x, (float)y));
+                    point = new Point(x, y, null, polygon2.Last());
+                    polygon2.Last().next = point;
+                    polygon2.Add(point);
                 }
             }
-
-            mainPanel.Invalidate();
         }
 
-        private void clearButton_Click(object sender, EventArgs e)
+        private void RightButtonClick()
         {
+            if (!fullFigure)
+            {
+                if (points.Count > 2 && polygon1.Count > 2)
+                {
+                    var lastPoint = points.Last();
+                    var firstPoint = points.First();
+                    polygon1.Last().next = polygon1.First();
+                    polygon1.First().prev = polygon1.Last();
+                    fullFigure = true;
+
+                    Console.WriteLine("Polygon 1:");
+                    foreach (var p in polygon1)
+                        p.Print();
+                }
+            }
+            else if (!fullFigure2)
+            {
+                if (points2.Count > 2 && polygon2.Count > 2)
+                {
+                    var lastPoint = points2.Last();
+                    var firstPoint = points2.First();
+                    polygon2.Last().next = polygon2.First();
+                    polygon2.First().prev = polygon2.Last();
+                    fullFigure2 = true;
+
+                    Console.WriteLine("Polygon 2:");
+                    foreach (var p in polygon2)
+                        p.Print();
+                }
+            }
+            canvas.Invalidate();
+        }
+
+        private void ClearButton_Click(object sender, EventArgs e)
+        {
+            ClearWindow();
+        }
+
+        private void ClearWindow()
+        {
+            canvas.Invalidate();
+            fullFigure = false;
+            fullFigure2 = false;
+            points.Clear();
+            points2.Clear();
             polygon1.Clear();
             polygon2.Clear();
             finalPoints.Clear();
-            currentPoints.Clear();
-            polygon1Complete = false;
-            polygon2Complete = false;
-            drawingPolygon1 = true;
-            mainPanel.Invalidate();
         }
 
-        private void goButton_Click(object sender, EventArgs e)
+        private void GoButton_Click(object sender, EventArgs e)
         {
-            if (!polygon1Complete || !polygon2Complete)
+            StartAlgorithm();
+        }
+
+        private void StartAlgorithm()
+        {
+            Union();
+            if (fill)
             {
-                MessageBox.Show("Завершите оба полигона перед вычислением объединения");
+                FillPolygon();
+            }
+            canvas.Invalidate();
+        }
+
+        private void Canvas_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            if (fullFigure && polygon1.Count > 0)
+            {
+                DrawPolygon(g, polygon1, Pens.Black, Brushes.Transparent);
+            }
+
+            if (fullFigure2 && polygon2.Count > 0)
+            {
+                DrawPolygon(g, polygon2, Pens.Black, Brushes.Transparent);
+            }
+
+            if (finalPoints.Count > 0)
+            {
+                DrawFinalResult(g);
+            }
+
+            foreach (var p in points)
+            {
+                g.FillEllipse(Brushes.Red, p.X - 2, p.Y - 2, 4, 4);
+            }
+            foreach (var p in points2)
+            {
+                g.FillEllipse(Brushes.Blue, p.X - 2, p.Y - 2, 4, 4);
+            }
+        }
+
+        private void DrawPolygon(Graphics g, List<Point> polygon, Pen linePen, Brush fillBrush)
+        {
+            if (polygon.Count < 3) return;
+
+            PointF[] pointsArray = polygon.Select(p => new PointF((float)p.x, (float)p.y)).ToArray();
+            g.DrawPolygon(linePen, pointsArray);
+            if (fillBrush != Brushes.Transparent)
+            {
+                g.FillPolygon(fillBrush, pointsArray);
+            }
+        }
+
+        private void DrawFinalResult(Graphics g)
+        {
+            if (finalPoints.Count < 3) return;
+
+            Pen greenPen = new Pen(Color.Green, 2);
+            Brush fillBrush = fill ? Brushes.SkyBlue : Brushes.Transparent;
+
+            g.DrawPolygon(greenPen, finalPoints.ToArray());
+            if (fill)
+            {
+                g.FillPolygon(fillBrush, finalPoints.ToArray());
+            }
+
+            foreach (var p in finalPoints)
+            {
+                g.FillEllipse(Brushes.Red, p.X - 3, p.Y - 3, 6, 6);
+            }
+
+            greenPen.Dispose();
+        }
+
+        private void FillPolygon()
+        {
+
+        }
+
+        private PointF? Intersection(Point p1, Point p2, Point p3, Point p4)
+        {
+            double x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+            double x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+
+            double denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+            if (Math.Abs(denom) < 1e-9) return null;
+
+            double t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+            double u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1)
+            {
+                double interX = x1 + t * (x2 - x1);
+                double interY = y1 + t * (y2 - y1);
+                return new PointF((float)interX, (float)interY);
+            }
+            return null;
+        }
+
+        private bool FindSide(Point p1, Point p2, double x, double y)
+        {
+            double xa = p2.x - p1.x;
+            double ya = p2.y - p1.y;
+            x -= p1.x;
+            y -= p1.y;
+            return (y * xa - x * ya) > 0;
+        }
+
+        private Point FindLeftestPoint(List<Point> curPolygon)
+        {
+            Point leftestPoint = new Point(1000000, -1000000);
+            foreach (var point in curPolygon)
+            {
+                if (point.x < leftestPoint.x ||
+                    (Math.Abs(point.x - leftestPoint.x) < 1e-9 && point.y > leftestPoint.y))
+                {
+                    leftestPoint = point;
+                }
+            }
+            return leftestPoint;
+        }
+
+        private bool IsPointInPolygon(Point point, List<Point> polygon)
+        {
+            foreach (var p in polygon)
+            {
+                if (p.Equals(point))
+                    return true;
+            }
+            return false;
+        }
+
+        private void Union()
+        {
+            finalPoints.Clear();
+
+            // Если полигоны не пересекаются и не имеют общих вершин, выбираем левый
+            if (!HasIntersections() && !HasCommonVertices())
+            {
+                Point leftest1 = FindLeftestPoint(polygon1);
+                Point leftest2 = FindLeftestPoint(polygon2);
+
+                List<Point> resultPolygon = leftest1.x < leftest2.x ? polygon1 : polygon2;
+
+                foreach (var point in resultPolygon)
+                {
+                    finalPoints.Add(new PointF((float)point.x, (float)point.y));
+                }
+                Console.WriteLine("я дебил");
                 return;
             }
 
-            UnionPolygons();
-        }
-    }
+            // Начинаем с левого полигона
+            Point left1 = FindLeftestPoint(polygon1);
+            Point left2 = FindLeftestPoint(polygon2);
 
-    public class PointFComparer : IEqualityComparer<PointF>
-    {
-        public bool Equals(PointF p1, PointF p2)
-        {
-            return Math.Abs(p1.X - p2.X) < 1e-5 && Math.Abs(p1.Y - p2.Y) < 1e-5;
+            List<Point> currentPolygon = left1.x < left2.x ? polygon1 : polygon2;
+            List<Point> otherPolygon = left1.x < left2.x ? polygon2 : polygon1;
+
+            Point current = FindLeftestPoint(currentPolygon);
+            Point start = current;
+            HashSet<Point> visited = new HashSet<Point>();
+            bool started = false;
+
+            int safetyCounter = 0;
+            int maxSteps = (polygon1.Count + polygon2.Count) * 2;
+
+            while (safetyCounter++ < maxSteps)
+            {
+                // Добавляем текущую точку
+                if (!visited.Contains(current))
+                {
+                    finalPoints.Add(new PointF((float)current.x, (float)current.y));
+                    visited.Add(current);
+                }
+
+                Point next = current.next;
+
+                // 1. Проверяем пересечения текущего ребра
+                PointF? closestIntersection = null;
+                Point intersectionOtherPoint = null;
+                double minDistance = double.MaxValue;
+
+                foreach (var edge in GetEdges(otherPolygon))
+                {
+                    PointF? intersection = Intersection(current, next, edge.Item1, edge.Item2);
+                    if (intersection.HasValue)
+                    {
+                        double dist = Distance(current.x, current.y, intersection.Value.X, intersection.Value.Y);
+                        if (dist < minDistance)
+                        {
+                            minDistance = dist;
+                            closestIntersection = intersection;
+                            intersectionOtherPoint = FindSide(current, next, edge.Item1.x, edge.Item1.y) ? edge.Item2 : edge.Item1;
+                        }
+                    }
+                }
+
+                // 2. Если есть пересечение - переключаемся
+                if (closestIntersection.HasValue)
+                {
+                    Point intersectionPoint = new Point(closestIntersection.Value.X, closestIntersection.Value.Y);
+
+                    if (!visited.Contains(intersectionPoint))
+                    {
+                        finalPoints.Add(closestIntersection.Value);
+                        visited.Add(intersectionPoint);
+                    }
+
+                    // Переключаем полигоны
+                    var temp = currentPolygon;
+                    currentPolygon = otherPolygon;
+                    otherPolygon = temp;
+
+                    current = intersectionOtherPoint;
+                }
+                // 3. Если пересечений нет, но следующая точка общая - переключаемся
+                else if (IsPointInPolygon(next, otherPolygon))
+                {
+                    // Находим общую точку в другом полигоне
+                    Point commonPoint = otherPolygon.First(p => p.Equals(next));
+
+                    // Переключаем полигоны
+                    var temp = currentPolygon;
+                    currentPolygon = otherPolygon;
+                    otherPolygon = temp;
+
+                    current = commonPoint;
+                }
+                else
+                {
+                    // 4. Продолжаем по текущему полигону
+                    current = next;
+                }
+
+                // Проверяем завершение (вернулись в начальную точку)
+                if (current.Equals(start) && started)
+                {
+                    break;
+                }
+
+                started = true;
+            }
+
+            canvas.Invalidate();
         }
 
-        public int GetHashCode(PointF p)
+        private List<(Point, Point)> GetEdges(List<Point> polygon)
         {
-            return (Math.Round(p.X, 5).GetHashCode() ^ Math.Round(p.Y, 5).GetHashCode());
+            var edges = new List<(Point, Point)>();
+            foreach (var point in polygon)
+            {
+                edges.Add((point, point.next));
+            }
+            return edges;
+        }
+
+        private bool HasIntersections()
+        {
+            foreach (var edge1 in GetEdges(polygon1))
+            {
+                foreach (var edge2 in GetEdges(polygon2))
+                {
+                    if (Intersection(edge1.Item1, edge1.Item2, edge2.Item1, edge2.Item2).HasValue)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private bool HasCommonVertices()
+        {
+            foreach (var p1 in polygon1)
+            {
+                foreach (var p2 in polygon2)
+                {
+                    if (p1.Equals(p2))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        private double Distance(double x1, double y1, double x2, double y2)
+        {
+            return Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
+        }
+
+        public class Point
+        {
+            public double x { get; set; }
+            public double y { get; set; }
+            public Point next { get; set; }
+            public Point prev { get; set; }
+
+            public Point(double x, double y, Point next = null, Point prev = null)
+            {
+                this.x = x;
+                this.y = y;
+                this.next = next;
+                this.prev = prev;
+            }
+
+            public void Print()
+            {
+                Console.WriteLine($"({x}, {y}) next: {next?.x},{next?.y} prev: {prev?.x},{prev?.y}");
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (obj is Point p)
+                    return Math.Abs(p.x - x) < 1e-4 && Math.Abs(p.y - y) < 1e-4;
+                return false;
+            }
+
+            public override int GetHashCode()
+            {
+                return (x.GetHashCode() * 397) ^ y.GetHashCode();
+            }
         }
     }
 }
